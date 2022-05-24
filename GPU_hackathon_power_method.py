@@ -158,21 +158,23 @@ def J_sync_power_method(vijs):
     vec = random.randn(n_vijs)
     vec = vec / norm(vec)
     residual = 1
-    itr = 0
 
     # Power method iterations
-    while itr < max_iters and residual > epsilon:
-        itr += 1
+    for _ in range(max_iters):
         vec_new = signs_times_v(vijs, vec)
-        vec_new = vec_new / norm(vec_new)
+        vec_new /= norm(vec_new)
         residual = norm(vec_new - vec)
         vec = vec_new
+        if residual < epsilon:
+            print('converged')
+            break
+    else:
+        print('max iterations')
 
     # We need only the signs of the eigenvector
     J_sync = np.sign(vec)
 
     return J_sync
-
 
 vijs = np.load("vijs_conj_n5.npy")
 
