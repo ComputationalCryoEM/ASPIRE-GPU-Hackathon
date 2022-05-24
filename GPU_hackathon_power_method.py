@@ -1,6 +1,7 @@
 import numpy as np
 from numpy.linalg import norm
 from numpy import random
+import os
 
 #####################
 # Utility Functions #
@@ -173,13 +174,16 @@ def J_sync_power_method(vijs):
 
     return J_sync
 
-
-vijs = np.load("vijs_conj_n5.npy")
-
+# Set number of images
+n = 10
+# Load corresponding input data
+vijs = np.load(f"vijs_conj_n{n}.npy")
+# Compute final vector
 J_sync_vec = J_sync_power_method(vijs)
-
-np.save("J_sync_vec_n5.npy", J_sync_vec)             
-             
+# save to disk
+np.save(f"J_sync_vec_n{n}.npy", J_sync_vec)             
+# add permissions
+os.chmod(f"J_sync_vec_n{n}.npy", 0o777)             
 
 
 
