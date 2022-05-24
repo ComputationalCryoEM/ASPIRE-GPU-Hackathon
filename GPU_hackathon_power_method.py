@@ -175,7 +175,7 @@ def J_sync_power_method(vijs):
     return J_sync
 
 # Set number of images
-n = 10
+n = 100
 # Load corresponding input data
 vijs = np.load(f"vijs_conj_n{n}.npy")
 # Compute final vector
