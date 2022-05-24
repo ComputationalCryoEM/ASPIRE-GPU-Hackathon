@@ -1,6 +1,7 @@
 import numpy as np
 from numpy import random
 from numpy.linalg import norm
+import os
 
 def J_conjugate(A):
     """
@@ -34,8 +35,8 @@ def buildOuterProducts(n_img):
     # J-conjugate some of these outer products (every other element).
     vijs_conj = vijs.copy()
     vijs_conj[::2] = J_conjugate(vijs_conj[::2])
+    fn = f"vijs_conj_n{n_img}.npy"
+    np.save(fn, vijs_conj)
+    os.chmod(fn, 0o777)
 
-    np.save(f"vijs_conj_n{n_img}.npy", vijs_conj)
- 
-
-buildOuterProducts(5)
+buildOuterProducts(10)
