@@ -48,7 +48,7 @@ def J_conjugate(A):
 # Power Method #
 ################
 
-def signs_times_v(vijs, vec):
+def signs_times_v(vijs, vec, conjugate, edge_signs):
     """
     Multiplication of the J-synchronization matrix by a candidate eigenvector.
 
@@ -79,24 +79,6 @@ def signs_times_v(vijs, vec):
     n_img = int((1+np.sqrt(1+8*len(vijs)))/2)  # Extract number of images from vijs.
     pairs = all_pairs(n_img)
     triplets = all_triplets(n_img)
-
-    # There are 4 possible configurations of relative handedness for each triplet (vij, vjk, vik).
-    # 'conjugate' expresses which node of the triplet must be conjugated (True) to achieve synchronization.
-    conjugate = np.empty((4, 3), bool)
-    conjugate[0] = [False, False, False]
-    conjugate[1] = [True, False, False]
-    conjugate[2] = [False, True, False]
-    conjugate[3] = [False, False, True]
-
-    # 'edges' corresponds to whether conjugation agrees between the pairs (vij, vjk), (vjk, vik),
-    # and (vik, vij). True if the pairs are in agreement, False otherwise.
-    edges = np.empty((4, 3), bool)
-    edges[:, 0] = conjugate[:, 0] == conjugate[:, 1]
-    edges[:, 1] = conjugate[:, 1] == conjugate[:, 2]
-    edges[:, 2] = conjugate[:, 2] == conjugate[:, 0]
-
-    # The corresponding entries in the J-synchronization matrix are +1 if the pair of nodes agree, -1 if not.
-    edge_signs = np.where(edges, 1, -1)
 
     # For each triplet of nodes we apply the 4 configurations of conjugation and determine the
     # relative handedness based on the condition that vij @ vjk - vik = 0 for synchronized nodes.
@@ -159,14 +141,33 @@ def J_sync_power_method(vijs):
     vec = vec / norm(vec)
     residual = 1
 
+    # Initialize entries for the J-sync matrix:
+    # There are 4 possible configurations of relative handedness for each triplet (vij, vjk, vik).
+    # 'conjugate' expresses which node of the triplet must be conjugated (True) to achieve synchronization.
+    conjugate = np.empty((4, 3), bool)
+    conjugate[0] = [False, False, False]
+    conjugate[1] = [True, False, False]
+    conjugate[2] = [False, True, False]
+    conjugate[3] = [False, False, True]
+
+    # 'edges' corresponds to whether conjugation agrees between the pairs (vij, vjk), (vjk, vik),
+    # and (vik, vij). True if the pairs are in agreement, False otherwise.
+    edges = np.empty((4, 3), bool)
+    edges[:, 0] = conjugate[:, 0] == conjugate[:, 1]
+    edges[:, 1] = conjugate[:, 1] == conjugate[:, 2]
+    edges[:, 2] = conjugate[:, 2] == conjugate[:, 0]
+
+    # The corresponding entries in the J-synchronization matrix are +1 if the pair of nodes agree, -1 if not.
+    edge_signs = np.where(edges, 1, -1)
+
     # Power method iterations
-    for _ in range(max_iters):
-        vec_new = signs_times_v(vijs, vec)
+    for itr in range(max_iters):
+        vec_new = signs_times_v(vijs, vec, conjugate, edge_signs)
         vec_new /= norm(vec_new)
         residual = norm(vec_new - vec)
         vec = vec_new
         if residual < epsilon:
-            print('converged')
+            print(f'Converged after {itr} iterations of the power method.')
             break
     else:
         print('max iterations')
