@@ -158,7 +158,7 @@ def J_sync_power_method(vijs):
     # Initialize candidate eigenvectors
     n_vijs = vijs.shape[0]
     vec = random.randn(n_vijs)
-    vec = vec / norm(vec)
+    vec /= norm(vec)
     residual = 1
 
     # Initialize entries for the J-sync matrix:
