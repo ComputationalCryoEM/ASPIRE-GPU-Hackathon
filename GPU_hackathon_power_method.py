@@ -101,16 +101,26 @@ def signs_times_v(vijs, vec, conjugate, edge_signs):
         ij = pairs_to_linear(n_img, i, j)
         jk = pairs_to_linear(n_img, j, k)
         ik = pairs_to_linear(n_img, i, k)
-        vij, vjk, vik = v[ij], v[jk], v[ik]
-        vij_J = J_conjugate(vij)
-        vjk_J = J_conjugate(vjk)
-        vik_J = J_conjugate(vik)
+        #vij, vjk, vik = v[ij], v[jk], v[ik]
+        Vijk = np.array([v[ij], v[jk], v[ik]])
+
+        #vij_J = J_conjugate(vij)
+        #vjk_J = J_conjugate(vjk)
+        #vik_J = J_conjugate(vik)
+        Vijk_J = J_conjugate(Vijk)
+
+        # conjugated_pairs = np.where(
+        #     conjugate[..., np.newaxis, np.newaxis],
+        #     [vij_J, vjk_J, vik_J],
+        #     [vij, vjk, vik],
+        # )
 
         conjugated_pairs = np.where(
             conjugate[..., np.newaxis, np.newaxis],
-            [vij_J, vjk_J, vik_J],
-            [vij, vjk, vik],
-        )
+            [Vijk_J[0], Vijk_J[1], Vijk_J[2]],
+            [Vijk[0], Vijk[1], Vijk[2]],
+            )
+
         residual = np.stack([norm(x @ y - z) for x, y, z in conjugated_pairs])
 
         min_residual = np.argmin(residual)
