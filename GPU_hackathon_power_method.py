@@ -19,7 +19,7 @@ def all_pairs(n):
     :return: All n-choose-2 pairs (i,j), i<j.
     """
     pairs = [(i, j) for i in range(n) for j in range(n) if i < j]
-    
+
     return pairs
 
 def pairs_to_linear(n, i, j):
@@ -27,9 +27,8 @@ def pairs_to_linear(n, i, j):
     Converts from all_pairs indexing (i, j), where i<j, to linear indexing.
     ie. (0, 1) --> 0 and (n-2, n-1) --> n * (n - 1)/2 - 1
     """
-    assert i < j, "i must be smaller than j."
 
-    linear_index = int((n*(n-1)/2) - (n-i)*((n-i)-1)/2 + j - i - 1)
+    linear_index = n*(n-1)//2 - (n-i)*((n-i)-1)//2 + j - i - 1
 
     return linear_index
 
@@ -41,7 +40,9 @@ def all_triplets(n):
     :returns: All 3-tuples (i,j,k), i<j<k.
     """
     triplets = (
-        (i, j, k) for i in range(n) for j in range(n) for k in range(n) if i < j < k
+        (i, j, k) for i in range(n)
+        for j in range(i+1, n)
+        for k in range(j+1, n)
     )
 
     return triplets
@@ -100,40 +101,30 @@ def signs_times_v(vijs, vec, conjugate, edge_signs):
     v = vijs
     new_vec = np.zeros_like(vec)
     for (i, j, k) in triplets:
-        ij = pairs_to_linear(n_img, i, j)
-        jk = pairs_to_linear(n_img, j, k)
-        ik = pairs_to_linear(n_img, i, k)
-        #vij, vjk, vik = v[ij], v[jk], v[ik]
-        Vijk = np.array([v[ij], v[jk], v[ik]])
-
-        #vij_J = J_conjugate(vij)
-        #vjk_J = J_conjugate(vjk)
-        #vik_J = J_conjugate(vik)
+        ijk = pairs_to_linear(n_img, np.array([i, j, i]), np.array([j, k, k]))
+        Vijk = v[ijk]
         Vijk_J = J_conjugate(Vijk)
-
-        # conjugated_pairs = np.where(
-        #     conjugate[..., np.newaxis, np.newaxis],
-        #     [vij_J, vjk_J, vik_J],
-        #     [vij, vjk, vik],
-        # )
 
         conjugated_pairs = np.where(
             conjugate[..., np.newaxis, np.newaxis],
-            [Vijk_J[0], Vijk_J[1], Vijk_J[2]],
-            [Vijk[0], Vijk[1], Vijk[2]],
-            )
+            [Vijk_J],
+            [Vijk],
+        )
 
-        residual = np.stack([norm(x @ y - z) for x, y, z in conjugated_pairs])
+        residual = norm(
+            conjugated_pairs[:, 0, ...] @  # x
+            conjugated_pairs[:, 1, ...] -  # y
+            conjugated_pairs[:, 2, ...],  # z
+            axis=(1, 2),
+        )
 
         min_residual = np.argmin(residual)
 
         # Assign edge weights
-        s_ij_jk, s_ik_jk, s_ij_ik = edge_signs[min_residual]
+        S = edge_signs[min_residual]
 
         # Update multiplication of signs times vec
-        new_vec[ij] += s_ij_jk * vec[jk] + s_ij_ik * vec[ik]
-        new_vec[jk] += s_ij_jk * vec[ij] + s_ik_jk * vec[ik]
-        new_vec[ik] += s_ij_jk * vec[ij] + s_ik_jk * vec[jk]
+        new_vec[ijk] += S[0] * vec[ijk[[1, 0, 0]]] + S[[2, 1, 1]] * vec[ijk[[2, 2, 1]]]
 
     return new_vec
 
@@ -156,7 +147,7 @@ def J_sync_power_method(vijs):
     epsilon = 1e-3
     max_iters = 1000
     random.seed(42)
-    
+
     # Initialize candidate eigenvectors
     n_vijs = vijs.shape[0]
     vec = random.randn(n_vijs)
@@ -203,8 +194,4 @@ vijs = np.load("vijs_conj_n50.npy")
 
 J_sync_vec = J_sync_power_method(vijs)
 
-np.save("J_sync_vec_n50.npy", J_sync_vec)             
-
-
-
-
+np.save("J_sync_vec_n50.npy", J_sync_vec)
