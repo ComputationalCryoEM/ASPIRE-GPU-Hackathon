@@ -3,6 +3,11 @@ from numpy.linalg import norm
 from numpy import random
 
 #####################
+# Global variables #
+#####################
+J = np.diag((-1, -1, 1))
+
+#####################
 # Utility Functions #
 #####################
 
@@ -14,7 +19,7 @@ def all_pairs(n):
     :return: All n-choose-2 pairs (i,j), i<j.
     """
     pairs = [(i, j) for i in range(n) for j in range(n) if i < j]
-
+    
     return pairs
 
 def pairs_to_linear(n, i, j):
@@ -35,9 +40,9 @@ def all_triplets(n):
     :param n: The number of items to be indexed.
     :returns: All 3-tuples (i,j,k), i<j<k.
     """
-    triplets = [
+    triplets = (
         (i, j, k) for i in range(n) for j in range(n) for k in range(n) if i < j < k
-    ]
+    )
 
     return triplets
 
@@ -49,8 +54,6 @@ def J_conjugate(A):
     :param A: A 3x3 matrix.
     :return: J*A*J
     """
-    J = np.diag((-1, -1, 1))
-
     return J @ A @ J
 
 
@@ -84,10 +87,9 @@ def signs_times_v(vijs, vec, conjugate, edge_signs):
 
     :return: New candidate eigenvector of length n-choose-2. The product of the J-sync matrix and vec.
     """
-
+    
     # All pairs (i,j) and triplets (i,j,k) where i<j<k
     n_img = int((1+np.sqrt(1+8*len(vijs)))/2)  # Extract number of images from vijs.
-    pairs = all_pairs(n_img)
     triplets = all_triplets(n_img)
 
     # For each triplet of nodes we apply the 4 configurations of conjugation and determine the
@@ -202,7 +204,6 @@ vijs = np.load("vijs_conj_n50.npy")
 J_sync_vec = J_sync_power_method(vijs)
 
 np.save("J_sync_vec_n50.npy", J_sync_vec)             
-             
 
 
 
