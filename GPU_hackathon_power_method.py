@@ -197,11 +197,11 @@ def J_sync_power_method(vijs):
 
     return J_sync
 
-vijs = np.load("vijs_conj_n5.npy")
+vijs = np.load("vijs_conj_n50.npy")
 
 J_sync_vec = J_sync_power_method(vijs)
 
-np.save("J_sync_vec_n5.npy", J_sync_vec)             
+np.save("J_sync_vec_n50.npy", J_sync_vec)             
              
 
 
