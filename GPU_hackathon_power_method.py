@@ -1,6 +1,7 @@
 import numpy as np
 from numpy.linalg import norm
 from numpy import random
+import sys
 
 #####################
 # Utility Functions #
@@ -194,8 +195,11 @@ def J_sync_power_method(vijs):
 
     return J_sync
 
-vijs = np.load("vijs_conj_n10.npy")
+n = sys.argv[1]
+n = int(n)
+
+vijs = np.load(f"vijs_conj_n{n}.npy")
 
 J_sync_vec = J_sync_power_method(vijs)
 
-np.save("J_sync_vec_n10.npy", J_sync_vec)
+np.save(f"J_sync_vec_n{n}.npy", J_sync_vec)
