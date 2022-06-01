@@ -2,25 +2,17 @@ import numpy as np
 from numpy.linalg import norm
 from numpy import random
 
+import itertools
+
 #####################
 # Global variables #
 #####################
 J = np.diag((-1, -1, 1))
+BATCH_SIZE = 10
 
 #####################
 # Utility Functions #
 #####################
-
-def all_pairs(n):
-    """
-    All pairs indexing (i,j) for i<j.
-
-    :param n: The number of items to be indexed.
-    :return: All n-choose-2 pairs (i,j), i<j.
-    """
-    pairs = [(i, j) for i in range(n) for j in range(n) if i < j]
-
-    return pairs
 
 def pairs_to_linear(n, i, j):
     """
@@ -28,9 +20,10 @@ def pairs_to_linear(n, i, j):
     ie. (0, 1) --> 0 and (n-2, n-1) --> n * (n - 1)/2 - 1
     """
 
-    linear_index = n*(n-1)//2 - (n-i)*((n-i)-1)//2 + j - i - 1
+    linear_index = n*(n-1)//2 - (n-i)*(n-i-1)//2 + j - i - 1
 
     return linear_index
+
 
 def all_triplets(n):
     """
@@ -40,22 +33,31 @@ def all_triplets(n):
     :returns: All 3-tuples (i,j,k), i<j<k.
     """
     triplets = (
-        (i, j, k) for i in range(n)
+        (i, j, k)
+        for i in range(n)
         for j in range(i+1, n)
         for k in range(j+1, n)
     )
 
     return triplets
 
-
-def J_conjugate(A):
+def all_triplets_batch(n):
     """
-    Conjugate the 3x3 matrix A by the diagonal matrix J=diag((-1, -1, 1)).
+    All 3-tuples (i,j,k) where i<j<k.
 
-    :param A: A 3x3 matrix.
-    :return: J*A*J
+    :param n: The number of items to be indexed.
+    :returns: All 3-tuples (i,j,k), i<j<k.
     """
-    return J @ A @ J
+    triplets = (
+        (i, j, k)
+        for i in range(n)
+        for j in range(i+1, n)
+        for k in range(j+1, n)
+    )
+
+    iters = [iter(triplets)] * BATCH_SIZE
+    for batch in itertools.zip_longest(*iters, fillvalue=None):
+        yield np.array(batch)
 
 
 ################
@@ -88,10 +90,9 @@ def signs_times_v(vijs, vec, conjugate, edge_signs):
 
     :return: New candidate eigenvector of length n-choose-2. The product of the J-sync matrix and vec.
     """
-    
+
     # All pairs (i,j) and triplets (i,j,k) where i<j<k
     n_img = int((1+np.sqrt(1+8*len(vijs)))/2)  # Extract number of images from vijs.
-    triplets = all_triplets(n_img)
 
     # For each triplet of nodes we apply the 4 configurations of conjugation and determine the
     # relative handedness based on the condition that vij @ vjk - vik = 0 for synchronized nodes.
@@ -100,31 +101,40 @@ def signs_times_v(vijs, vec, conjugate, edge_signs):
     # condition. Finally, we the multiply the 'edge_signs' by the cooresponding entries of 'vec'.
     v = vijs
     new_vec = np.zeros_like(vec)
-    for (i, j, k) in triplets:
-        ijk = pairs_to_linear(n_img, np.array([i, j, i]), np.array([j, k, k]))
+    for batch in all_triplets_batch(n_img):
+        ijk = pairs_to_linear(
+            n_img,
+            batch[:, [0, 1, 0]],
+            batch[:, [1, 2, 2]],
+        )
+
         Vijk = v[ijk]
-        Vijk_J = J_conjugate(Vijk)
+
+        Vijk_J = J @ Vijk @ J
 
         conjugated_pairs = np.where(
-            conjugate[..., np.newaxis, np.newaxis],
-            [Vijk_J],
-            [Vijk],
+            conjugate[np.newaxis, ..., np.newaxis, np.newaxis],
+            np.expand_dims(Vijk_J, axis=1),
+            np.expand_dims(Vijk, axis=1),
         )
 
         residual = norm(
-            conjugated_pairs[:, 0, ...] @  # x
-            conjugated_pairs[:, 1, ...] -  # y
-            conjugated_pairs[:, 2, ...],  # z
-            axis=(1, 2),
+            conjugated_pairs[:, :, 0, ...] @  # x
+            conjugated_pairs[:, :, 1, ...] -  # y
+            conjugated_pairs[:, :, 2, ...],  # z
+            axis=(2, 3),
         )
 
-        min_residual = np.argmin(residual)
+        min_residual = np.argmin(residual, axis=1)
 
         # Assign edge weights
         S = edge_signs[min_residual]
 
         # Update multiplication of signs times vec
-        new_vec[ijk] += S[0] * vec[ijk[[1, 0, 0]]] + S[[2, 1, 1]] * vec[ijk[[2, 2, 1]]]
+        new_ele = S[:, [0, 0, 0]] * vec[ijk[:, [1, 0, 0]]] + S[:, [2, 1, 1]] * vec[ijk[:, [2, 2, 1]]]
+        expanded_vec = np.zeros((new_ele.shape[0], new_vec.size))
+        expanded_vec[np.arange(0, new_ele.shape[0])[:, np.newaxis], ijk] = new_ele
+        new_vec += np.sum(expanded_vec, axis=0)
 
     return new_vec
 
