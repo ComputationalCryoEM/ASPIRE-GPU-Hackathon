@@ -22,9 +22,8 @@ def pairs_to_linear(n, i, j):
     Converts from all_pairs indexing (i, j), where i<j, to linear indexing.
     ie. (0, 1) --> 0 and (n-2, n-1) --> n * (n - 1)/2 - 1
     """
-    assert i < j, "i must be smaller than j."
 
-    linear_index = int((n*(n-1)/2) - (n-i)*((n-i)-1)/2 + j - i - 1)
+    linear_index = n*(n-1)//2 - (n-i)*((n-i)-1)//2 + j - i - 1
 
     return linear_index
 
@@ -99,12 +98,8 @@ def signs_times_v(vijs, vec, conjugate, edge_signs):
     v = vijs
     new_vec = np.zeros_like(vec)
     for (i, j, k) in triplets:
-        ij = pairs_to_linear(n_img, i, j)
-        jk = pairs_to_linear(n_img, j, k)
-        ik = pairs_to_linear(n_img, i, k)
-
-        Vijk = np.array([v[ij], v[jk], v[ik]])
-
+        ijk = pairs_to_linear(n_img, np.array([i, j, i]), np.array([j, k, k]))
+        Vijk = v[ijk]
         Vijk_J = J_conjugate(Vijk)
 
         conjugated_pairs = np.where(
@@ -123,12 +118,10 @@ def signs_times_v(vijs, vec, conjugate, edge_signs):
         min_residual = np.argmin(residual)
 
         # Assign edge weights
-        s_ij_jk, s_ik_jk, s_ij_ik = edge_signs[min_residual]
+        S = edge_signs[min_residual]
 
         # Update multiplication of signs times vec
-        new_vec[ij] += s_ij_jk * vec[jk] + s_ij_ik * vec[ik]
-        new_vec[jk] += s_ij_jk * vec[ij] + s_ik_jk * vec[ik]
-        new_vec[ik] += s_ij_jk * vec[ij] + s_ik_jk * vec[jk]
+        new_vec[ijk] += S[0] * vec[ijk[[1, 0, 0]]] + S[[2, 1, 1]] * vec[ijk[[2, 2, 1]]]
 
     return new_vec
 

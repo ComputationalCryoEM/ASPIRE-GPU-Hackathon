@@ -39,4 +39,4 @@ def buildOuterProducts(n_img):
     np.save(fn, vijs_conj)
     os.chmod(fn, 0o777)
 
-buildOuterProducts(5)
+buildOuterProducts(10)
