@@ -35,9 +35,11 @@ def all_triplets(n):
     :param n: The number of items to be indexed.
     :returns: All 3-tuples (i,j,k), i<j<k.
     """
-    triplets = [
-        (i, j, k) for i in range(n) for j in range(n) for k in range(n) if i < j < k
-    ]
+    triplets = (
+        (i, j, k) for i in range(n)
+        for j in range(i+1, n)
+        for k in range(j+1, n)
+    )
 
     return triplets
 
@@ -87,7 +89,6 @@ def signs_times_v(vijs, vec, conjugate, edge_signs):
 
     # All pairs (i,j) and triplets (i,j,k) where i<j<k
     n_img = int((1+np.sqrt(1+8*len(vijs)))/2)  # Extract number of images from vijs.
-    pairs = all_pairs(n_img)
     triplets = all_triplets(n_img)
 
     # For each triplet of nodes we apply the 4 configurations of conjugation and determine the
@@ -101,27 +102,23 @@ def signs_times_v(vijs, vec, conjugate, edge_signs):
         ij = pairs_to_linear(n_img, i, j)
         jk = pairs_to_linear(n_img, j, k)
         ik = pairs_to_linear(n_img, i, k)
-        #vij, vjk, vik = v[ij], v[jk], v[ik]
+
         Vijk = np.array([v[ij], v[jk], v[ik]])
 
-        #vij_J = J_conjugate(vij)
-        #vjk_J = J_conjugate(vjk)
-        #vik_J = J_conjugate(vik)
         Vijk_J = J_conjugate(Vijk)
-
-        # conjugated_pairs = np.where(
-        #     conjugate[..., np.newaxis, np.newaxis],
-        #     [vij_J, vjk_J, vik_J],
-        #     [vij, vjk, vik],
-        # )
 
         conjugated_pairs = np.where(
             conjugate[..., np.newaxis, np.newaxis],
-            [Vijk_J[0], Vijk_J[1], Vijk_J[2]],
-            [Vijk[0], Vijk[1], Vijk[2]],
-            )
+            [Vijk_J],
+            [Vijk],
+        )
 
-        residual = np.stack([norm(x @ y - z) for x, y, z in conjugated_pairs])
+        residual = norm(
+            conjugated_pairs[:, 0, ...] @  # x
+            conjugated_pairs[:, 1, ...] -  # y
+            conjugated_pairs[:, 2, ...],  # z
+            axis=(1, 2),
+        )
 
         min_residual = np.argmin(residual)
 
@@ -154,7 +151,7 @@ def J_sync_power_method(vijs):
     epsilon = 1e-3
     max_iters = 1000
     random.seed(42)
-    
+
     # Initialize candidate eigenvectors
     n_vijs = vijs.shape[0]
     vec = random.randn(n_vijs)
@@ -197,13 +194,8 @@ def J_sync_power_method(vijs):
 
     return J_sync
 
-vijs = np.load("vijs_conj_n5.npy")
+vijs = np.load("vijs_conj_n10.npy")
 
 J_sync_vec = J_sync_power_method(vijs)
 
-np.save("J_sync_vec_n5.npy", J_sync_vec)             
-             
-
-
-
-
+np.save("J_sync_vec_n10.npy", J_sync_vec)
