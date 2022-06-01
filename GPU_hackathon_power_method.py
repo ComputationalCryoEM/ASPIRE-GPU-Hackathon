@@ -2,6 +2,7 @@ import numpy as np
 from numpy.linalg import norm
 from numpy import random
 import os
+import sys
 
 #####################
 # Utility Functions #
@@ -178,7 +179,7 @@ def J_sync_power_method(vijs):
     return J_sync
 
 # Set number of images
-n = 10
+n = int(sys.argv[1])
 # Load corresponding input data
 vijs = np.load(f"vijs_conj_n{n}.npy")
 # Compute final vector
