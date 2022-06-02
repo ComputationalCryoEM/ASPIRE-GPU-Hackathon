@@ -203,8 +203,8 @@ def J_sync_power_method(vijs, BATCH_SIZE):
 n = int(sys.argv[1])
 BATCH_SIZE = int(sys.argv[2])
 
-vijs = np.load("vijs_conj_n50.npy")
+vijs = np.load(f"vijs_conj_n{n}.npy")
 
 J_sync_vec = J_sync_power_method(vijs, BATCH_SIZE)
 
-np.save("J_sync_vec_n50.npy", J_sync_vec)
+np.save(f"J_sync_vec_n{n}.npy", J_sync_vec)
