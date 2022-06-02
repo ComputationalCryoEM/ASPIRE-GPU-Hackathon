@@ -101,7 +101,7 @@ def signs_times_v(vijs, vec, conjugate, edge_signs, BATCH_SIZE):
     # condition. Finally, we the multiply the 'edge_signs' by the cooresponding entries of 'vec'.
     v = vijs
     new_vec = np.zeros_like(vec)
-    for batch in all_triplets_batch(n_img):
+    for batch in all_triplets_batch(n_img, BATCH_SIZE):
         ijk = pairs_to_linear(
             n_img,
             batch[:, [0, 1, 0]],
