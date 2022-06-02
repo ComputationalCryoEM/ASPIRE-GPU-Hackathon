@@ -2,6 +2,7 @@ import numpy as np
 from numpy import random
 from numpy.linalg import norm
 import os
+import sys
 
 def J_conjugate(A):
     """
@@ -39,4 +40,5 @@ def buildOuterProducts(n_img):
     np.save(fn, vijs_conj)
     os.chmod(fn, 0o777)
 
-buildOuterProducts(100)
+n = int(sys.argv[1])
+buildOuterProducts(n)
