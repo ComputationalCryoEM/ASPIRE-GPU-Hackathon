@@ -1,6 +1,7 @@
 import numpy as np
 from numpy.linalg import norm
 from numpy import random
+import sys
 
 import itertools
 
@@ -8,7 +9,6 @@ import itertools
 # Global variables #
 #####################
 J = np.diag((-1, -1, 1))
-BATCH_SIZE = 10
 
 #####################
 # Utility Functions #
@@ -41,7 +41,7 @@ def all_triplets(n):
 
     return triplets
 
-def all_triplets_batch(n):
+def all_triplets_batch(n, BATCH_SIZE):
     """
     All 3-tuples (i,j,k) where i<j<k.
 
@@ -64,7 +64,7 @@ def all_triplets_batch(n):
 # Power Method #
 ################
 
-def signs_times_v(vijs, vec, conjugate, edge_signs):
+def signs_times_v(vijs, vec, conjugate, edge_signs, BATCH_SIZE):
     """
     Multiplication of the J-synchronization matrix by a candidate eigenvector.
 
@@ -138,7 +138,7 @@ def signs_times_v(vijs, vec, conjugate, edge_signs):
 
     return new_vec
 
-def J_sync_power_method(vijs):
+def J_sync_power_method(vijs, BATCH_SIZE):
     """
     Calculate the leading eigenvector of the J-synchronization matrix
     using the power method.
@@ -185,7 +185,7 @@ def J_sync_power_method(vijs):
 
     # Power method iterations
     for itr in range(max_iters):
-        vec_new = signs_times_v(vijs, vec, conjugate, edge_signs)
+        vec_new = signs_times_v(vijs, vec, conjugate, edge_signs, BATCH_SIZE)
         vec_new /= norm(vec_new)
         residual = norm(vec_new - vec)
         vec = vec_new
@@ -200,8 +200,11 @@ def J_sync_power_method(vijs):
 
     return J_sync
 
+n = int(sys.argv[1])
+BATCH_SIZE = int(sys.argv[2])
+
 vijs = np.load("vijs_conj_n50.npy")
 
-J_sync_vec = J_sync_power_method(vijs)
+J_sync_vec = J_sync_power_method(vijs, BATCH_SIZE)
 
 np.save("J_sync_vec_n50.npy", J_sync_vec)
