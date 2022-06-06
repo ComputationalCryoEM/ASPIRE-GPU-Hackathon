@@ -132,9 +132,12 @@ def signs_times_v(vijs, vec, conjugate, edge_signs, BATCH_SIZE):
 
         # Update multiplication of signs times vec
         new_ele = S[:, [0, 0, 0]] * vec[ijk[:, [1, 0, 0]]] + S[:, [2, 1, 1]] * vec[ijk[:, [2, 2, 1]]]
-        expanded_vec = np.zeros((new_ele.shape[0], new_vec.size))
-        expanded_vec[np.arange(0, new_ele.shape[0])[:, np.newaxis], ijk] = new_ele
-        new_vec += np.sum(expanded_vec, axis=0)
+        new_ele_f = new_ele.flatten()
+        ijk_f = ijk.flatten()
+        new_ele_sum = np.histogram(ijk_f, weights=new_ele_f, bins=np.append(np.unique(ijk_f), np.max(ijk_f) + 1))[0]
+        expanded_vec_sum = np.zeros(new_vec.size)
+        expanded_vec_sum[np.unique(ijk_f)] = new_ele_sum
+        new_vec += expanded_vec_sum
 
     return new_vec
 
