@@ -1,8 +1,8 @@
 try:
-    print("CuPy enabled")
     import cupy as np
     from cupy.linalg import norm
     from cupy import random
+    print("CuPy enabled")
 except ImportError:
     print("Running CPU version")
     import numpy as np
