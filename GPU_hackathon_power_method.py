@@ -1,6 +1,6 @@
-import numpy as np
-from numpy.linalg import norm
-from numpy import random
+import cupy as np
+from cupy.linalg import norm
+from cupy import random
 import sys
 
 import itertools
@@ -168,10 +168,10 @@ def J_sync_power_method(vijs, BATCH_SIZE):
     # There are 4 possible configurations of relative handedness for each triplet (vij, vjk, vik).
     # 'conjugate' expresses which node of the triplet must be conjugated (True) to achieve synchronization.
     conjugate = np.empty((4, 3), bool)
-    conjugate[0] = [False, False, False]
-    conjugate[1] = [True, False, False]
-    conjugate[2] = [False, True, False]
-    conjugate[3] = [False, False, True]
+    conjugate[0] = np.array([False, False, False])
+    conjugate[1] = np.array([True, False, False])
+    conjugate[2] = np.array([False, True, False])
+    conjugate[3] = np.array([False, False, True])
 
     # 'edges' corresponds to whether conjugation agrees between the pairs (vij, vjk), (vjk, vik),
     # and (vik, vij). True if the pairs are in agreement, False otherwise.
