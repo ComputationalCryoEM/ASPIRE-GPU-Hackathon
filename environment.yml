@@ -21,7 +21,7 @@ dependencies:
   - zlib=1.2.12=h7f8727e_2
   - pip:
     - backcall==0.2.0
-    - cupy-cuda102==10.4.0
+    - cupy-cuda116==10.5.0
     - decorator==5.1.1
     - fastrlock==0.8
     - ipython==7.33.0
