@@ -40,5 +40,5 @@ def buildOuterProducts(n_img):
     np.save(fn, vijs_conj)
     os.chmod(fn, 0o777)
 
-n = sys.argv[1]
-buildOuterProducts(int(n))
+n = int(sys.argv[1])
+buildOuterProducts(n)

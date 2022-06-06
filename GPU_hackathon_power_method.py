@@ -1,23 +1,37 @@
-import numpy as np
-from numpy.linalg import norm
-from numpy import random
-import os
+try:
+    print("CuPy enabled")
+    import cupy as np
+    from cupy.linalg import norm
+    from cupy import random
+except ImportError:
+    print("Running CPU version")
+    import numpy as np
+    from numpy.linalg import norm
+    from numpy import random
+
 import sys
+import os
+
+import itertools
+
+#####################
+# Global variables #
+#####################
+J = np.diag((-1, -1, 1))
 
 #####################
 # Utility Functions #
 #####################
 
-def all_pairs(n):
+def pairs_to_linear(n, i, j):
     """
-    All pairs indexing (i,j) for i<j.
-
-    :param n: The number of items to be indexed.
-    :return: All n-choose-2 pairs (i,j), i<j.
+    Converts from all_pairs indexing (i, j), where i<j, to linear indexing.
+    ie. (0, 1) --> 0 and (n-2, n-1) --> n * (n - 1)/2 - 1
     """
-    pairs = [(i, j) for i in range(n) for j in range(n) if i < j]
 
-    return pairs
+    linear_index = n*(n-1)//2 - (n-i)*(n-i-1)//2 + j - i - 1
+
+    return linear_index
 
 
 def all_triplets(n):
@@ -27,30 +41,39 @@ def all_triplets(n):
     :param n: The number of items to be indexed.
     :returns: All 3-tuples (i,j,k), i<j<k.
     """
-    triplets = [
-        (i, j, k) for i in range(n) for j in range(n) for k in range(n) if i < j < k
-    ]
+    triplets = (
+        (i, j, k)
+        for i in range(n)
+        for j in range(i+1, n)
+        for k in range(j+1, n)
+    )
 
     return triplets
 
-
-def J_conjugate(A):
+def all_triplets_batch(n, BATCH_SIZE):
     """
-    Conjugate the 3x3 matrix A by the diagonal matrix J=diag((-1, -1, 1)).
+    All 3-tuples (i,j,k) where i<j<k.
 
-    :param A: A 3x3 matrix.
-    :return: J*A*J
+    :param n: The number of items to be indexed.
+    :returns: All 3-tuples (i,j,k), i<j<k.
     """
-    J = np.diag((-1, -1, 1))
+    triplets = (
+        (i, j, k)
+        for i in range(n)
+        for j in range(i+1, n)
+        for k in range(j+1, n)
+    )
 
-    return J @ A @ J
+    iters = [iter(triplets)] * BATCH_SIZE
+    for batch in itertools.zip_longest(*iters, fillvalue=None):
+        yield np.array(batch)
 
 
 ################
 # Power Method #
 ################
 
-def signs_times_v(vijs, vec):
+def signs_times_v(vijs, vec, conjugate, edge_signs, BATCH_SIZE):
     """
     Multiplication of the J-synchronization matrix by a candidate eigenvector.
 
@@ -79,26 +102,6 @@ def signs_times_v(vijs, vec):
 
     # All pairs (i,j) and triplets (i,j,k) where i<j<k
     n_img = int((1+np.sqrt(1+8*len(vijs)))/2)  # Extract number of images from vijs.
-    pairs = all_pairs(n_img)
-    triplets = all_triplets(n_img)
-
-    # There are 4 possible configurations of relative handedness for each triplet (vij, vjk, vik).
-    # 'conjugate' expresses which node of the triplet must be conjugated (True) to achieve synchronization.
-    conjugate = np.empty((4, 3), bool)
-    conjugate[0] = [False, False, False]
-    conjugate[1] = [True, False, False]
-    conjugate[2] = [False, True, False]
-    conjugate[3] = [False, False, True]
-
-    # 'edges' corresponds to whether conjugation agrees between the pairs (vij, vjk), (vjk, vik),
-    # and (vik, vij). True if the pairs are in agreement, False otherwise.
-    edges = np.empty((4, 3), bool)
-    edges[:, 0] = conjugate[:, 0] == conjugate[:, 1]
-    edges[:, 1] = conjugate[:, 1] == conjugate[:, 2]
-    edges[:, 2] = conjugate[:, 2] == conjugate[:, 0]
-
-    # The corresponding entries in the J-synchronization matrix are +1 if the pair of nodes agree, -1 if not.
-    edge_signs = np.where(edges, 1, -1)
 
     # For each triplet of nodes we apply the 4 configurations of conjugation and determine the
     # relative handedness based on the condition that vij @ vjk - vik = 0 for synchronized nodes.
@@ -107,35 +110,44 @@ def signs_times_v(vijs, vec):
     # condition. Finally, we the multiply the 'edge_signs' by the cooresponding entries of 'vec'.
     v = vijs
     new_vec = np.zeros_like(vec)
-    for (i, j, k) in triplets:
-        ij = pairs.index((i, j))
-        jk = pairs.index((j, k))
-        ik = pairs.index((i, k))
-        vij, vjk, vik = v[ij], v[jk], v[ik]
-        vij_J = J_conjugate(vij)
-        vjk_J = J_conjugate(vjk)
-        vik_J = J_conjugate(vik)
+    for batch in all_triplets_batch(n_img, BATCH_SIZE):
+        ijk = pairs_to_linear(
+            n_img,
+            batch[:, [0, 1, 0]],
+            batch[:, [1, 2, 2]],
+        )
+
+        Vijk = v[ijk]
+
+        Vijk_J = J @ Vijk @ J
 
         conjugated_pairs = np.where(
-            conjugate[..., np.newaxis, np.newaxis],
-            [vij_J, vjk_J, vik_J],
-            [vij, vjk, vik],
+            conjugate[np.newaxis, ..., np.newaxis, np.newaxis],
+            np.expand_dims(Vijk_J, axis=1),
+            np.expand_dims(Vijk, axis=1),
         )
-        residual = np.stack([norm(x @ y - z) for x, y, z in conjugated_pairs])
 
-        min_residual = np.argmin(residual)
+        residual = norm(
+            conjugated_pairs[:, :, 0, ...] @  # x
+            conjugated_pairs[:, :, 1, ...] -  # y
+            conjugated_pairs[:, :, 2, ...],  # z
+            axis=(2, 3),
+        )
+
+        min_residual = np.argmin(residual, axis=1)
 
         # Assign edge weights
-        s_ij_jk, s_ik_jk, s_ij_ik = edge_signs[min_residual]
+        S = edge_signs[min_residual]
 
         # Update multiplication of signs times vec
-        new_vec[ij] += s_ij_jk * vec[jk] + s_ij_ik * vec[ik]
-        new_vec[jk] += s_ij_jk * vec[ij] + s_ik_jk * vec[ik]
-        new_vec[ik] += s_ij_jk * vec[ij] + s_ik_jk * vec[jk]
+        new_ele = S[:, [0, 0, 0]] * vec[ijk[:, [1, 0, 0]]] + S[:, [2, 1, 1]] * vec[ijk[:, [2, 2, 1]]]
+        expanded_vec = np.zeros((new_ele.shape[0], new_vec.size))
+        expanded_vec[np.arange(0, new_ele.shape[0])[:, np.newaxis], ijk] = new_ele
+        new_vec += np.sum(expanded_vec, axis=0)
 
     return new_vec
 
-def J_sync_power_method(vijs):
+def J_sync_power_method(vijs, BATCH_SIZE):
     """
     Calculate the leading eigenvector of the J-synchronization matrix
     using the power method.
@@ -154,21 +166,40 @@ def J_sync_power_method(vijs):
     epsilon = 1e-3
     max_iters = 1000
     random.seed(42)
-    
+
     # Initialize candidate eigenvectors
     n_vijs = vijs.shape[0]
     vec = random.randn(n_vijs)
-    vec = vec / norm(vec)
+    vec /= norm(vec)
     residual = 1
 
+    # Initialize entries for the J-sync matrix:
+    # There are 4 possible configurations of relative handedness for each triplet (vij, vjk, vik).
+    # 'conjugate' expresses which node of the triplet must be conjugated (True) to achieve synchronization.
+    conjugate = np.empty((4, 3), bool)
+    conjugate[0] = np.array([False, False, False])
+    conjugate[1] = np.array([True, False, False])
+    conjugate[2] = np.array([False, True, False])
+    conjugate[3] = np.array([False, False, True])
+
+    # 'edges' corresponds to whether conjugation agrees between the pairs (vij, vjk), (vjk, vik),
+    # and (vik, vij). True if the pairs are in agreement, False otherwise.
+    edges = np.empty((4, 3), bool)
+    edges[:, 0] = conjugate[:, 0] == conjugate[:, 1]
+    edges[:, 1] = conjugate[:, 1] == conjugate[:, 2]
+    edges[:, 2] = conjugate[:, 2] == conjugate[:, 0]
+
+    # The corresponding entries in the J-synchronization matrix are +1 if the pair of nodes agree, -1 if not.
+    edge_signs = np.where(edges, 1, -1)
+
     # Power method iterations
-    for _ in range(max_iters):
-        vec_new = signs_times_v(vijs, vec)
+    for itr in range(max_iters):
+        vec_new = signs_times_v(vijs, vec, conjugate, edge_signs, BATCH_SIZE)
         vec_new /= norm(vec_new)
         residual = norm(vec_new - vec)
         vec = vec_new
         if residual < epsilon:
-            print('converged')
+            print(f'Converged after {itr} iterations of the power method.')
             break
     else:
         print('max iterations')
@@ -178,18 +209,17 @@ def J_sync_power_method(vijs):
 
     return J_sync
 
-# Set number of images
+# problem size to load
 n = int(sys.argv[1])
-# Load corresponding input data
+# batch size
+BATCH_SIZE = int(sys.argv[2])
+
+# load input data
 vijs = np.load(f"vijs_conj_n{n}.npy")
-# Compute final vector
 
-J_sync_vec = J_sync_power_method(vijs)
+J_sync_vec = J_sync_power_method(vijs, BATCH_SIZE)
+
 # save to disk
-np.save(f"J_sync_vec_n{n}.npy", J_sync_vec)             
-# add permissions
-os.chmod(f"J_sync_vec_n{n}.npy", 0o777)             
-
-
-
-
+np.save(f"J_sync_vec_n{n}.npy", J_sync_vec)
+# modify permissions
+os.chmod(f"J_sync_vec_n{n}.npy", 0o777)                                                                                                    
