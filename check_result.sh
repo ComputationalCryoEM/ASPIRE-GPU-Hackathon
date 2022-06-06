@@ -6,7 +6,7 @@ NO_COLOR=$(tput sgr0)
 
 n=$1
 cmp_file=$2
-orig_file='/tigress/cl5072/gpu_hackathon/ASPIRE-GPU-Hackathon/J_sync_vec_n'$n'.npy'
+orig_file='/tigress/cl5072/gpu_hackathon/main/J_sync_vec_n'$n'.npy'
 echo 'Comparing '$cmp_file' to '$orig_file'.'
 if cmp -s $cmp_file $orig_file; then
     echo -e "${GREEN}Match.${NO_COLOR}"
