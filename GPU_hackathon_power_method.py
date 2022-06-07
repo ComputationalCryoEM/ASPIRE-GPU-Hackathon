@@ -120,12 +120,17 @@ def signs_times_v(vijs, vec, conjugate, edge_signs, batch_size):
             np.expand_dims(Vijk, axis=1),
         )
 
+        # flatten the pairs array to limit number of kernel launches
+        old_shape = conjugated_pairs.shape
+        conjugated_pairs = conjugated_pairs.reshape((-1, 3, 3, 3))
         residual = norm(
-            conjugated_pairs[:, :, 0, ...] @  # x
-            conjugated_pairs[:, :, 1, ...] -  # y
-            conjugated_pairs[:, :, 2, ...],  # z
-            axis=(2, 3),
+            conjugated_pairs[:, 0, ...] @  # x
+            conjugated_pairs[:, 1, ...] -  # y
+            conjugated_pairs[:, 2, ...],  # z
+            axis=(1, 2),
         )
+        # convert back to original size to maintain sanity
+        residual = residual.reshape(old_shape[0:2])
 
         min_residual = np.argmin(residual, axis=1)
 
@@ -181,12 +186,13 @@ def J_sync_power_method(vijs, batch_size):
     # The corresponding entries in the J-synchronization matrix are +1 if the pair of nodes agree, -1 if not.
     edge_signs = np.where(edges, 1, -1)
 
+    # initialize vec_new to prevent blocking garbage collection of vec
+    vec_new = vec
     # Power method iterations
     for itr in range(max_iters):
         vec_new = signs_times_v(vijs, vec, conjugate, edge_signs, batch_size)
         vec_new /= norm(vec_new)
         residual = norm(vec_new - vec)
-        del vec
         vec = vec_new
         if residual < epsilon:
             print(f'Converged after {itr} iterations of the power method.')
@@ -195,7 +201,7 @@ def J_sync_power_method(vijs, batch_size):
         print('max iterations')
 
     # We need only the signs of the eigenvector
-    J_sync = np.sign(vec)
+    J_sync = np.sign(vec_new)
 
     return J_sync
 
