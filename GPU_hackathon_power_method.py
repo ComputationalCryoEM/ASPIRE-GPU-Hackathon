@@ -11,6 +11,8 @@ from numpy import random
 
 import sys
 
+import nvtx
+
 import itertools
 
 #####################
@@ -103,16 +105,18 @@ def signs_times_v(vijs, vec, conjugate, edge_signs, batch_size):
     new_vec = np.zeros_like(vec)
     bins = np.arange(len(new_vec) + 1)
     for batch in all_triplets_batch(n_img, batch_size):
-        ijk = pairs_to_linear(
-            n_img,
-            batch[:, [0, 1, 0]],
-            batch[:, [1, 2, 2]],
-        )
+        with nvtx.annotate("pairs_to_linear", color="purple"):
+            ijk = pairs_to_linear(
+                n_img,
+                batch[:, [0, 1, 0]],
+                batch[:, [1, 2, 2]],
+            )
 
         Vijk = v[ijk]
 
         # J @ Vijk @ J
-        Vijk_J = J_mask[None, None, ...] * Vijk
+        with nvtx.annotate("J_conjugate", color="red"):        
+            Vijk_J = J_mask[None, None, ...] * Vijk
 
         conjugated_pairs = np.where(
             conjugate[np.newaxis, ..., np.newaxis, np.newaxis],
@@ -120,12 +124,11 @@ def signs_times_v(vijs, vec, conjugate, edge_signs, batch_size):
             np.expand_dims(Vijk, axis=1),
         )
 
-        residual = norm(
-            conjugated_pairs[:, :, 0, ...] @  # x
-            conjugated_pairs[:, :, 1, ...] -  # y
-            conjugated_pairs[:, :, 2, ...],  # z
-            axis=(2, 3),
-        )
+        with nvtx.annotate("residual_exp", color="green"):
+            res_exp = conjugated_pairs[:, :, 0, ...] @ conjugated_pairs[:, :, 1, ...] - conjugated_pairs[:, :, 2, ...]        
+
+        with nvtx.annotate("norm_calc", color="blue"):
+            residual = norm(res_exp, axis=(2, 3))
 
         min_residual = np.argmin(residual, axis=1)
 
@@ -134,8 +137,9 @@ def signs_times_v(vijs, vec, conjugate, edge_signs, batch_size):
 
         # Update multiplication of signs times vec
         new_ele = S[:, [0, 0, 0]] * vec[ijk[:, [1, 0, 0]]] + S[:, [2, 1, 1]] * vec[ijk[:, [2, 2, 1]]]
-        new_vec += np.histogram(ijk[:], weights=new_ele[:], bins=bins)[0]
-
+        with nvtx.annotate("histogram", color="orange"):
+            new_vec += np.histogram(ijk[:], weights=new_ele[:], bins=bins)[0]
+        break
     return new_vec
 
 def J_sync_power_method(vijs, batch_size):
@@ -155,7 +159,7 @@ def J_sync_power_method(vijs, batch_size):
 
     # Set power method tolerance and maximum iterations.
     epsilon = 1e-3
-    max_iters = 1000
+    max_iters = 1
     random.seed(42)
 
     # Initialize candidate eigenvectors
