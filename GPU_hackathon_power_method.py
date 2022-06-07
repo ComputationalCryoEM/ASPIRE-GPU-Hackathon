@@ -139,7 +139,6 @@ def signs_times_v(vijs, vec, conjugate, edge_signs, batch_size):
         new_ele = S[:, [0, 0, 0]] * vec[ijk[:, [1, 0, 0]]] + S[:, [2, 1, 1]] * vec[ijk[:, [2, 2, 1]]]
         with nvtx.annotate("histogram", color="orange"):
             new_vec += np.histogram(ijk[:], weights=new_ele[:], bins=bins)[0]
-        break
     return new_vec
 
 def J_sync_power_method(vijs, batch_size):
@@ -159,7 +158,7 @@ def J_sync_power_method(vijs, batch_size):
 
     # Set power method tolerance and maximum iterations.
     epsilon = 1e-3
-    max_iters = 1
+    max_iters = 1000
     random.seed(42)
 
     # Initialize candidate eigenvectors
