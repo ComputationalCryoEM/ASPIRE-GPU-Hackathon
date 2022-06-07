@@ -16,7 +16,13 @@ import itertools
 #####################
 # Global variables #
 #####################
-J = np.diag((-1, -1, 1))
+# J conjugating matrix is equivalent to elementwise multiplication of J_mask
+J_mask = np.array([
+    [1, 1, -1],
+    [1, 1, -1],
+    [-1, -1, 1],
+])
+
 
 #####################
 # Utility Functions #
@@ -105,7 +111,8 @@ def signs_times_v(vijs, vec, conjugate, edge_signs, batch_size):
 
         Vijk = v[ijk]
 
-        Vijk_J = J @ Vijk @ J
+        # J @ Vijk @ J
+        Vijk_J = J_mask[None, None, ...] * Vijk
 
         conjugated_pairs = np.where(
             conjugate[np.newaxis, ..., np.newaxis, np.newaxis],
@@ -179,6 +186,7 @@ def J_sync_power_method(vijs, batch_size):
         vec_new = signs_times_v(vijs, vec, conjugate, edge_signs, batch_size)
         vec_new /= norm(vec_new)
         residual = norm(vec_new - vec)
+        del vec
         vec = vec_new
         if residual < epsilon:
             print(f'Converged after {itr} iterations of the power method.')
