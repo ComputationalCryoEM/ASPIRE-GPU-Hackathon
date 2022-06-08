@@ -1,6 +1,7 @@
 try:
     import cupy as np
     from cupy.linalg import norm
+    import numpy
     print("CuPy enabled")
 except ImportError:
     print("Running CPU version")
@@ -8,9 +9,7 @@ except ImportError:
     from numpy.linalg import norm
 
 from numpy import random
-
 import sys
-
 import itertools
 
 #####################
@@ -39,32 +38,34 @@ def pairs_to_linear(n, i, j):
     return linear_index
 
 
-def all_triplets_batch(n, batch_size):
+def all_triplets_batch(ijks, batch_size):
+    for i in range(0, ijks.shape[0], batch_size):
+        yield ijks[i:i+batch_size, :]
+
+def all_triplets(n):
     """
     All 3-tuples (i,j,k) where i<j<k.
 
     :param n: The number of items to be indexed.
     :returns: All 3-tuples (i,j,k), i<j<k.
     """
-
-    triplets = (
-        (i, j, k)
-        for i in range(n)
-        for j in range(i+1, n)
-        for k in range(j+1, n)
-    )
-
-    iters = [iter(triplets)] * batch_size
-    for batch in itertools.zip_longest(*iters, fillvalue=(-1, -1, -1)):
-        inds = np.array(batch)
-        yield inds[inds[:, 0] != -1]
-
-
+    jk_vals = np.array(numpy.triu_indices(n, k=1)).T
+    i_vals = np.tile(np.arange(n), (len(jk_vals), 1)).T.flatten()
+    jk_vals = np.tile(jk_vals, (n,1))
+    ijks = np.hstack((i_vals[:, None], jk_vals))
+    ijks = ijks[ijks[:, 0] < ijks[:, 1], :]
+    np.random.shuffle(ijks)
+    return pairs_to_linear(n, 
+                ijks[:, [0, 1, 0]],
+                ijks[:, [1, 2, 2]],
+                )
+    
+    
 ################
 # Power Method #
 ################
 
-def signs_times_v(vijs, vec, conjugate, edge_signs, batch_size):
+def signs_times_v(vijs, vec, conjugate, edge_signs, triplets_iter):
     """
     Multiplication of the J-synchronization matrix by a candidate eigenvector.
 
@@ -90,10 +91,6 @@ def signs_times_v(vijs, vec, conjugate, edge_signs, batch_size):
 
     :return: New candidate eigenvector of length n-choose-2. The product of the J-sync matrix and vec.
     """
-
-    # All pairs (i,j) and triplets (i,j,k) where i<j<k
-    n_img = int((1+np.sqrt(1+8*len(vijs)))/2)  # Extract number of images from vijs.
-
     # For each triplet of nodes we apply the 4 configurations of conjugation and determine the
     # relative handedness based on the condition that vij @ vjk - vik = 0 for synchronized nodes.
     # We then construct the corresponding entries of the J-synchronization matrix with 'edge_signs'
@@ -102,13 +99,7 @@ def signs_times_v(vijs, vec, conjugate, edge_signs, batch_size):
     v = vijs
     new_vec = np.zeros_like(vec)
     bins = np.arange(len(new_vec) + 1)
-    for batch in all_triplets_batch(n_img, batch_size):
-        ijk = pairs_to_linear(
-            n_img,
-            batch[:, [0, 1, 0]],
-            batch[:, [1, 2, 2]],
-        )
-
+    for ijk in triplets_iter:
         Vijk = v[ijk]
 
         # J @ Vijk @ J
@@ -140,7 +131,6 @@ def signs_times_v(vijs, vec, conjugate, edge_signs, batch_size):
         # Update multiplication of signs times vec
         new_ele = S[:, [0, 0, 0]] * vec[ijk[:, [1, 0, 0]]] + S[:, [2, 1, 1]] * vec[ijk[:, [2, 2, 1]]]
         new_vec += np.histogram(ijk[:], weights=new_ele[:], bins=bins)[0]
-
     return new_vec
 
 def J_sync_power_method(vijs, batch_size):
@@ -186,11 +176,18 @@ def J_sync_power_method(vijs, batch_size):
     # The corresponding entries in the J-synchronization matrix are +1 if the pair of nodes agree, -1 if not.
     edge_signs = np.where(edges, 1, -1)
 
+    # number of images (inverting n choose 2)
+    n_img = int((1+np.sqrt(1+8*len(vijs)))/2)
+    
+    # generate shuffled indices for triplets
+    triplets = all_triplets(n_img)
+    
     # initialize vec_new to prevent blocking garbage collection of vec
     vec_new = vec
     # Power method iterations
     for itr in range(max_iters):
-        vec_new = signs_times_v(vijs, vec, conjugate, edge_signs, batch_size)
+        triplets_iter = all_triplets_batch(triplets, batch_size)
+        vec_new = signs_times_v(vijs, vec, conjugate, edge_signs, triplets_iter)
         vec_new /= norm(vec_new)
         residual = norm(vec_new - vec)
         vec = vec_new
