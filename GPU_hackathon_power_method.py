@@ -1,12 +1,24 @@
+CUDA = False
+
 try:
     import cupy as np
     from cupy.linalg import norm
     import numpy
-    print("CuPy enabled")
+    CUDA = True
 except ImportError:
     print("Running CPU version")
     import numpy as np
     from numpy.linalg import norm
+
+if CUDA:
+    try:
+        import cupy_backends
+        cupy_backends.cuda.api.runtime.getDevice()
+        print("CuPy enabled")
+    except cupy_backends.cuda.api.runtime.CUDARuntimeError:
+        print("Running CPU version")
+        import numpy as np
+        from numpy.linalg import norm
 
 from numpy import random
 import sys
