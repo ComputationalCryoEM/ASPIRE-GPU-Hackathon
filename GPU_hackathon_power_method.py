@@ -165,7 +165,7 @@ def J_sync_power_method(vijs, batch_size):
 
     # Set power method tolerance and maximum iterations.
     epsilon = 1e-3
-    max_iters = 1
+    max_iters = 1000
     random.seed(42)
 
     # Initialize candidate eigenvectors
