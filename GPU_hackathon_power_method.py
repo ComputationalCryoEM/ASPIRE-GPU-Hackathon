@@ -4,11 +4,13 @@ try:
     import cupy as np
     from cupy.linalg import norm
     import numpy
+    from numpy import triu_indices
     CUDA = True
 except ImportError:
     print("Running CPU version")
     import numpy as np
     from numpy.linalg import norm
+    from numpy import triu_indices
 
 if CUDA:
     try:
@@ -19,6 +21,7 @@ if CUDA:
         print("Running CPU version")
         import numpy as np
         from numpy.linalg import norm
+        from numpy import triu_indices
 
 from numpy import random
 import sys
@@ -56,7 +59,7 @@ def all_triplets_batch(ijks, batch_size):
     """
     Given a set of all triplets we generate the triplets in batches.
 
-    :param ijks: The set of triplets [ij, jk, ik]
+    :param ijks: The set of all_triplets [ij, jk, ik]
     :param batch_size: The number of triplets to generate per batch.
 
     :yield: Batches of triplets of size batch_size x 3
@@ -75,7 +78,7 @@ def all_triplets(n):
     :returns: All triplet [(i, j), (j, k), (i, k)], where i<j<k and each pair
     is converted to a linear index.
     """
-    jk_vals = np.array(numpy.triu_indices(n, k=1)).T
+    jk_vals = np.array(triu_indices(n, k=1)).T
     i_vals = np.tile(np.arange(n), (len(jk_vals), 1)).T.flatten()
     jk_vals = np.tile(jk_vals, (n,1))
     ijks = np.hstack((i_vals[:, None], jk_vals))
@@ -126,10 +129,13 @@ def signs_times_v(vijs, vec, conjugate, edge_signs, triplets_iter):
     new_vec = np.zeros_like(vec)
     bins = np.arange(len(new_vec) + 1)
     for ijk in triplets_iter:
+        # Retrieve all vijs for the batch of triplets indices ijk.
+        # Vijk has shape (batch_size)x3x3x3.
         Vijk = v[ijk]
 
         # J @ Vijk @ J
         Vijk_J = J_mask[None, None, ...] * Vijk
+
 
         conjugated_pairs = np.where(
             conjugate[np.newaxis, ..., np.newaxis, np.newaxis],
