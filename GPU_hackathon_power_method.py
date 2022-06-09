@@ -27,7 +27,9 @@ import itertools
 #####################
 # Global variables #
 #####################
-# J conjugating matrix is equivalent to elementwise multiplication of J_mask
+# J conjugating matrix is equivalent to elementwise multiplication of J_mask.
+# We replace J @ A @ J with J_mask * A, where J = diag(-1, -1, 1).
+# This reduces the number matrix multiplication kernels on the GPU.
 J_mask = np.array([
     [1, 1, -1],
     [1, 1, -1],
@@ -51,15 +53,27 @@ def pairs_to_linear(n, i, j):
 
 
 def all_triplets_batch(ijks, batch_size):
+    """
+    Given a set of all triplets we generate the triplets in batches.
+
+    :param ijks: The set of triplets [ij, jk, ik]
+    :param batch_size: The number of triplets to generate per batch.
+
+    :yield: Batches of triplets of size batch_size x 3
+    """
     for i in range(0, ijks.shape[0], batch_size):
         yield ijks[i:i+batch_size, :]
 
 def all_triplets(n):
     """
-    All 3-tuples (i,j,k) where i<j<k.
+    We construct all 3-tuples (i,j,k) where i<j<k. We then shuffle the tuples
+    to prevent overloading individual histogram bins in sync_times_v. We return
+    all triplets of pairs [(i, j), (j, k), (i, k)], where each pair is represented
+    with the linear index performed by pairs_to_linear.
 
     :param n: The number of items to be indexed.
-    :returns: All 3-tuples (i,j,k), i<j<k.
+    :returns: All triplet [(i, j), (j, k), (i, k)], where i<j<k and each pair
+    is converted to a linear index.
     """
     jk_vals = np.array(numpy.triu_indices(n, k=1)).T
     i_vals = np.tile(np.arange(n), (len(jk_vals), 1)).T.flatten()
